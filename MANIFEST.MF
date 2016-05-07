@@ -1,0 +1,3 @@
+Main-Class: Run
+Class-Path: weka.jar ./
+

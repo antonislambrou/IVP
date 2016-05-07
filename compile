@@ -1,0 +1,2 @@
+javac -cp weka.jar Run.java VPredictor.java VPInterface.java CV.java
+jar cmf MANIFEST.MF Run.jar Run.class VPredictor.class

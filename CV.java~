@@ -1,0 +1,129 @@
+import weka.core.Instance;
+import weka.core.Instances;
+import java.io.*;
+/* This class implements a cross validation experiment */
+class CV
+{
+	public int folds;
+	public VPredictor vp;
+	public double accuracy; 
+	public double error;
+	
+	public CV(int folds)
+	{
+		this.folds = folds;
+		this.vp = new VPredictor();
+	}
+	public CV()
+	{
+		this.folds = 10;
+		this.vp = new VPredictor();
+	}
+	public CV(VPredictor vp)
+	{
+		this.vp = vp;
+		this.folds = 10;
+	}
+	public CV(VPredictor vp, int folds)
+	{
+		this.folds = folds;
+		this.vp = vp;
+	}
+	public void setVP(VPredictor vp)
+	{
+		this.vp = vp;
+	}
+	
+	public void performCV(Instances data)
+	{
+		int i;
+		int numClasses = data.numClasses();
+		int numInstances = data.numInstances();
+		accuracy = 0;
+		error = 0;
+		double low = 0;
+		double up = 0;
+		int batch = 20;
+		int startup = 1;
+		
+		Instances train_set = new Instances(data);
+		Instances calib_set = new Instances(data);
+		train_set.delete();
+		calib_set.delete();
+		
+		for(int j=0;j<batch;j++)
+		{
+			train_set.add(data.instance(j));
+		}
+		for(int j=batch/2;j<startup;j++)
+		{
+			calib_set.add(data.instance(j));
+		}
+		
+		
+		System.out.printf("Performing online validation...\n");
+		long startTime = System.currentTimeMillis();
+		int ctr = 0;
+		
+		try{
+			vp.buildVennPredictor(train_set);
+			FileOutputStream stream = new FileOutputStream("results.txt");
+			PrintWriter pout = new PrintWriter(stream);
+			for(i=startup;i<numInstances-1;i++)
+			{	
+				System.out.printf("%d %d\n",train_set.numInstances(),calib_set.numInstances());
+				ctr++;
+				if(ctr < batch)
+				{
+					calib_set.add(data.instance(i));
+				}
+				else
+				{
+					ctr = 0;
+					int b = batch / 3;
+					for(int k=0;k<b*2;k++)
+					{
+						int len = calib_set.numInstances();
+						train_set.add(calib_set.instance(len-1));
+						calib_set.remove(len-1);
+					}
+					vp.buildVennPredictor(train_set);
+					calib_set.add(data.instance(i));	
+					
+				}
+				Instance test_inst = data.instance(i+1);
+				double prediction = vp.IclassifyInstance(calib_set,test_inst);
+				
+				low += vp.low;
+				up += vp.up;
+					
+				if(prediction == test_inst.classValue())
+				{
+					accuracy += 1;
+				}
+				pout.printf("%.4f %.4f %.4f\n",low/(i-(startup-1)),up/(i-(startup-1)),accuracy/(i-(startup-1)));
+				System.out.printf("%d %.4f %.4f %.4f\n",i/(i-(startup-1)),low/(i-(startup-1)),up/(i-(startup-1)),accuracy/(i-(startup-1)));		
+					
+			}
+			pout.close();
+		}catch(Exception e){
+			e.printStackTrace();
+		}
+		long endTime = System.currentTimeMillis();
+		long milliseconds = (endTime - startTime);
+		int seconds = (int) (milliseconds / 1000) % 60 ;
+		int minutes = (int) ((milliseconds / (1000*60)) % 60);
+		int hours   = (int) ((milliseconds / (1000*60*60)) % 24);
+
+		accuracy = (double) accuracy / ((double) data.numInstances() - (startup));
+		System.out.printf("Accuracy: %.4f\n",accuracy);
+		System.out.printf("Time: %d:%d:%d\n",hours,minutes,seconds);
+		System.out.printf("Low: %.4f\n",(double)low/((double)data.numInstances() - startup));
+		System.out.printf("Up: %.4f\n",(double)up/((double)data.numInstances() - startup));
+	}
+	
+	double getAccuracy()
+	{
+		return accuracy;
+	}
+}
